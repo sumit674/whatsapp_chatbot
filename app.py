@@ -35,6 +35,7 @@ ASK_DETAIL_START = " "
 ASK_NAME = "please enter your full name [Firstname LastName] e.g Manoj Kumar"
 ASK_GENDER = "Enter your gender [M/F/O]"
 ASK_BIRTH_YEAR = "Year of Birth [XXXX]"
+ASK_VALID_BIRTH_YEAR = "Enter Year of Birth like [XXXX] e.g 1984"
 ASK_ETHINICITY = "Ethnicity [State of origin] e.g. Odisha"
 ASK_LOCATION = "Current Location - [City] e.g. Bhopal"
 ASK_IMAGE = "Submit a Headshot"
@@ -66,14 +67,13 @@ update_dict = {
 }
 
 class AskState(IntEnum):
-    say_hi = 1
-    ask_name = 1 << 1
-    ask_gender = 1 << 2
-    ask_birth_year = 1 << 3
-    ask_ethinicity = 1 << 4
-    ask_location = 1 << 5
-    ask_headshot_image = 1 << 6
-    ask_intro_video = 1 << 7
+    ask_name = 1
+    ask_gender = 2
+    ask_birth_year = 3
+    ask_ethinicity = 4
+    ask_location = 5
+    ask_headshot_image = 6
+    ask_intro_video = 7
 
 class UserData:
     def __init__(self):
@@ -89,18 +89,77 @@ class UserData:
 def is_valid_url(url_data):
     return validators.url(url_data)
 
+def is_valid_birth_year(year):
+    if re.match(r"^[ ]*[0-9]{4}[ ]*$", year):
+        return True
+    else:
+        return False
+
 
 def ask_from_user(sender_number):
     ask_statement = ""
     if sender_number not in user_data:
         user_data[sender_number] = UserData()
     ask_state = user_data[sender_number].ask_state
-    if ask_state <= 7:
+    if ask_state <= int(AskState.ask_intro_video):
         ask_statement = ask_dict[ask_state]
     return ask_statement
 
+def valid_name_check(name):
+    single_name_re = r"^[ ]*[a-z|A-Z]+[ ]*$"
+    full_name_re = r"^[ ]*[a-z|A-Z]+[ ]*[a-z|A-Z]+[ ]*$"
+    if re.match(full_name_re, name):
+        return True, ""
+    elif re.match(single_name_re, name):
+        return False, "Please enter [Firstname LastName]"
+    else:
+        return False, "Please enter [Firstname LastName]"
+
+def update_user_data(sender_number, ask_state, msg):
+    reply = ""
+    if ask_state == int(AskState.ask_name):
+        is_name_valid, reply = valid_name_check(msg)
+        if is_name_valid:
+            user_data[sender_number].name = msg
+            user_data[sender_number].ask_state = AskState.ask_gender
+            reply = ask_dict[user_data[sender_number].ask_state]
+    elif ask_state == AskState.ask_gender:
+        if msg == "M" or msg == "m" or msg == "f" or msg == "f" or msg == "o" or msg == "O":
+            user_data[sender_number].gender = msg
+            user_data[sender_number].ask_state = AskState.ask_birth_year
+            reply = ask_dict[user_data[sender_number].ask_state]
+    elif ask_state == AskState.ask_birth_year:
+        if is_valid_birth_year(msg):
+            user_data[sender_number].birth_year = msg
+            user_data[sender_number].ask_state = AskState.ask_ethinicity
+            reply = ask_dict[user_data[sender_number].ask_state]
+        else:
+            reply = ASK_VALID_BIRTH_YEAR
+    elif ask_state == AskState.ask_ethinicity:
+        user_data[sender_number].ethinicity = msg
+        user_data[sender_number].ask_state = AskState.ask_location
+        reply = ask_dict[user_data[sender_number].ask_state]
+    elif ask_state == AskState.ask_location:
+        user_data[sender_number].location = msg
+        user_data[sender_number].ask_state = AskState.ask_headshot_image
+        reply = ask_dict[user_data[sender_number].ask_state]
+
+    return reply
+
+
 def check_user_from_database(sender_number):
     return False
+
+
+def check_user_message(sender_number, msg):
+    reply = ""
+    if sender_number in user_data:
+        ask_state = user_data[sender_number].ask_state
+        if ask_state >= 1 and ask_state <= 7:
+            reply = update_user_data(sender_number, ask_state, msg)
+
+    return reply
+
 
 def decide_on_message(sender_number, msg):
     reply = ""
@@ -111,8 +170,12 @@ def decide_on_message(sender_number, msg):
         if not user_present:
             reply = ask_from_user(sender_number)
         else:
+            pass
+    else:
+        reply = check_user_message(sender_number, msg)
 
     return reply
+
 
 def add_data_to_user_info(sender_number, data):
     for info in data:
