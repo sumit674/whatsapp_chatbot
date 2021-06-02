@@ -41,6 +41,10 @@ ASK_IMAGE = "Submit a Headshot"
 ASK_VIDEO = "Submit a Intro Video"
 ASK_DETAIL_END = "Thank you for submitting your profile"
 
+ASK_FOR_UPDATE = "Your profile is already registered, please enter\n"
+ASK_FOR_UPDATE += "1 to update Name\n2 to update Birth Year\n3 to update Ethinicity\n"
+ASK_FOR_UPDATE += "4 to update Location\n5 to update Headshot\n6 to update Intro Video"
+
 ask_dict = {
     1: GREET + ASK_NAME,
     2: ASK_GENDER,
@@ -48,7 +52,17 @@ ask_dict = {
     4: ASK_ETHINICITY,
     5: ASK_LOCATION,
     6: ASK_IMAGE,
-    7: ASK_VIDEO
+    7: ASK_VIDEO,
+    8: ASK_FOR_UPDATE
+}
+
+update_dict = {
+    1: ASK_NAME,
+    2: ASK_BIRTH_YEAR,
+    3: ASK_ETHINICITY,
+    4: ASK_LOCATION,
+    5: ASK_IMAGE,
+    6: ASK_VIDEO
 }
 
 class AskState(IntEnum):
@@ -70,7 +84,6 @@ class UserData:
         self.location = ""
         self.headshot_image = ""
         self.intro_video = ""
-        self.intro_video = ""
         self.ask_state = 1
 
 def is_valid_url(url_data):
@@ -85,6 +98,21 @@ def ask_from_user(sender_number):
     if ask_state <= 7:
         ask_statement = ask_dict[ask_state]
     return ask_statement
+
+def check_user_from_database(sender_number):
+    return False
+
+def decide_on_message(sender_number, msg):
+    reply = ""
+    user_present = check_user_from_database(sender_number)
+    if msg.lower() == "hi" or msg.lower() == "hello" or msg.lower() == "hey":
+        # check mobile no. in data base if not present then go from fresh registraton
+        # else ask for what he wants to update
+        if not user_present:
+            reply = ask_from_user(sender_number)
+        else:
+
+    return reply
 
 def add_data_to_user_info(sender_number, data):
     for info in data:
