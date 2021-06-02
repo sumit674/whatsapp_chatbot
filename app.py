@@ -62,15 +62,16 @@ class AskState(IntEnum):
     ask_intro_video = 1 << 7
 
 class UserData:
-    self.name = ""
-    self.gender = ""
-    self.birth_year = ""
-    self.ethinicity = ""
-    self.location = ""
-    self.headshot_image = ""
-    self.intro_video = ""
-    self.intro_video = ""
-    self.ask_state = 1
+    def __init__(self):
+        self.name = ""
+        self.gender = ""
+        self.birth_year = ""
+        self.ethinicity = ""
+        self.location = ""
+        self.headshot_image = ""
+        self.intro_video = ""
+        self.intro_video = ""
+        self.ask_state = 1
 
 def is_valid_url(url_data):
     return validators.url(url_data)
