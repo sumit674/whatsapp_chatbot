@@ -4,6 +4,9 @@ import re
 from enum import Enum, IntEnum
 import validators
 
+# from paramiko import SSHClient
+# from scp import SCPClient
+
 app = Flask(__name__)
 
 
@@ -30,31 +33,37 @@ class State(Enum):
     INTRO_VIDEO_RECEIVED = 5
     WORK_REEL_RECEIVED = 6
 
-GREET = "Hello! Welcome to Anti-Casting\nThis is an automated service to register your details.\nTo register "
+HANDLE_ANY_TXT = "Hello! Welcome to Anti-Casting\nThis is an automated service to register your details.\nText \"Hi\" to register"
+GREET = "Hello! Welcome to Anti-Casting\nThis is an automated service to register your details.\nYour registration starts:\n "
 ASK_DETAIL_START = " "
-ASK_NAME = "please enter your full name [Firstname LastName] e.g Manoj Kumar"
+ASK_NAME = "Please enter your full name [Firstname LastName] e.g Manoj Kumar"
 ASK_GENDER = "Enter your gender [M/F/O]"
+ASK_VALID_GENDER = "Enter gender like [M/F/O]"
 ASK_BIRTH_YEAR = "Year of Birth [XXXX]"
 ASK_VALID_BIRTH_YEAR = "Enter Year of Birth like [XXXX] e.g 1984"
 ASK_ETHINICITY = "Ethnicity [State of origin] e.g. Odisha"
 ASK_LOCATION = "Current Location - [City] e.g. Bhopal"
-ASK_IMAGE = "Submit a Headshot"
-ASK_VIDEO = "Submit a Intro Video"
-ASK_DETAIL_END = "Thank you for submitting your profile"
+ASK_IMAGE = "Submit a Headshot like above"
+ASK_VIDEO = "Submit a Intro Video like below:\nhttp://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+# ASK_VIDEO = "Submit a Intro Video:\n"
+DATA_SUBMITTED = "Thank you for submitting your profile\nYou are registered with Anti-Casting\nTo get more details plz visit www.anticasting.in"
 
-ASK_FOR_UPDATE = "Your profile is already registered, please enter\n"
-ASK_FOR_UPDATE += "1 to update Name\n2 to update Birth Year\n3 to update Ethinicity\n"
-ASK_FOR_UPDATE += "4 to update Location\n5 to update Headshot\n6 to update Intro Video"
+ALREADY_REGISTERED = "Your profile is already registered "
+
+ASK_FOR_UPDATE = "please enter\n"
+ASK_FOR_UPDATE += "0 if update done\n1 to update Name\n2 to update gender\n3 to update Birth Year\n4 to update Ethinicity\n"
+ASK_FOR_UPDATE += "5 to update Location\n6 to update Headshot\n7 to update Intro Video\nEnter *OK* to submit"
 
 ask_dict = {
-    1: GREET + ASK_NAME,
+    1: ASK_NAME,
     2: ASK_GENDER,
     3: ASK_BIRTH_YEAR,
     4: ASK_ETHINICITY,
     5: ASK_LOCATION,
     6: ASK_IMAGE,
     7: ASK_VIDEO,
-    8: ASK_FOR_UPDATE
+    9: DATA_SUBMITTED,
+    10: ASK_FOR_UPDATE
 }
 
 update_dict = {
@@ -74,6 +83,9 @@ class AskState(IntEnum):
     ask_location = 5
     ask_headshot_image = 6
     ask_intro_video = 7
+    confirm_data = 8
+    data_submitted = 9
+    ask_for_update = 10
 
 class UserData:
     def __init__(self):
@@ -85,6 +97,8 @@ class UserData:
         self.headshot_image = ""
         self.intro_video = ""
         self.ask_state = 1
+        self.wrong_entry = 0
+        self.update_state = False
 
 def is_valid_url(url_data):
     return validators.url(url_data)
@@ -97,17 +111,17 @@ def is_valid_birth_year(year):
 
 
 def ask_from_user(sender_number):
-    ask_statement = ""
+    ask_statement = GREET
     if sender_number not in user_data:
         user_data[sender_number] = UserData()
     ask_state = user_data[sender_number].ask_state
     if ask_state <= int(AskState.ask_intro_video):
-        ask_statement = ask_dict[ask_state]
+        ask_statement += "1/7: "+ ask_dict[ask_state]
     return ask_statement
 
 def valid_name_check(name):
     single_name_re = r"^[ ]*[a-z|A-Z]+[ ]*$"
-    full_name_re = r"^[ ]*[a-z|A-Z]+[ ]*[a-z|A-Z]+[ ]*$"
+    full_name_re = r"^[ ]*[a-z|A-Z]+[ ]+[a-z|A-Z]+[ ]*$"
     if re.match(full_name_re, name):
         return True, ""
     elif re.match(single_name_re, name):
@@ -115,34 +129,108 @@ def valid_name_check(name):
     else:
         return False, "Please enter [Firstname LastName]"
 
+
+def confirm_data(sender_number):
+    #confirm data
+    reply = "Enter *1* to submit and *2* to edit:\nFollowing are your data:\n"
+    data = user_data[sender_number]
+    reply += "Name: " + data.name +"\n"
+    reply += "Gender: " + data.gender +"\n"
+    reply += "Birth Year: " + data.birth_year +"\n"
+    reply += "Ethinicity: " + data.ethinicity +"\n"
+    reply += "Location: " + data.location
+
+    return reply
+
+def save_to_database(sender_number):
+    data = user_data[sender_number]
+    # connect to my sql and save data
+
+def update_sender_data(sender_number, msg):
+    reply = ""
+    if msg == "0":
+        user_data[sender_number].update_state = False
+        reply = confirm_data(sender_number)
+        user_data[sender_number].ask_state = AskState.confirm_data
+    elif msg == "1":
+        user_data[sender_number].ask_state = AskState.ask_name
+        reply = ASK_NAME
+    elif msg == "2":
+        pass
+    elif msg == "3":
+        pass
+    elif msg == "4":
+        pass
+    elif msg == "5":
+        pass
+    elif msg == "6":
+        pass
+    elif msg == "7":
+        pass
+    elif msg.lower() == "ok":
+        pass
+
+    return reply
+
+
 def update_user_data(sender_number, ask_state, msg):
     reply = ""
-    if ask_state == int(AskState.ask_name):
+    if ask_state == AskState.ask_name and not user_data[sender_number].update_state:
         is_name_valid, reply = valid_name_check(msg)
         if is_name_valid:
             user_data[sender_number].name = msg
             user_data[sender_number].ask_state = AskState.ask_gender
-            reply = ask_dict[user_data[sender_number].ask_state]
-    elif ask_state == AskState.ask_gender:
+            reply = "2/7: "
+            reply += ask_dict[int(user_data[sender_number].ask_state)]
+    elif ask_state == AskState.ask_gender and not user_data[sender_number].update_state:
         if msg == "M" or msg == "m" or msg == "f" or msg == "f" or msg == "o" or msg == "O":
             user_data[sender_number].gender = msg
             user_data[sender_number].ask_state = AskState.ask_birth_year
-            reply = ask_dict[user_data[sender_number].ask_state]
-    elif ask_state == AskState.ask_birth_year:
+            reply = "3/7: "
+            reply += ask_dict[int(user_data[sender_number].ask_state)]
+        else:
+            reply = ASK_VALID_GENDER
+    elif ask_state == AskState.ask_birth_year and not user_data[sender_number].update_state:
         if is_valid_birth_year(msg):
             user_data[sender_number].birth_year = msg
             user_data[sender_number].ask_state = AskState.ask_ethinicity
-            reply = ask_dict[user_data[sender_number].ask_state]
+            reply = "4/7: "
+            reply += ask_dict[int(user_data[sender_number].ask_state)]
         else:
             reply = ASK_VALID_BIRTH_YEAR
-    elif ask_state == AskState.ask_ethinicity:
+    elif ask_state == AskState.ask_ethinicity and not user_data[sender_number].update_state:
         user_data[sender_number].ethinicity = msg
         user_data[sender_number].ask_state = AskState.ask_location
-        reply = ask_dict[user_data[sender_number].ask_state]
-    elif ask_state == AskState.ask_location:
+        reply = "5/7: "
+        reply += ask_dict[int(user_data[sender_number].ask_state)]
+    elif ask_state == AskState.ask_location and not user_data[sender_number].update_state:
         user_data[sender_number].location = msg
         user_data[sender_number].ask_state = AskState.ask_headshot_image
-        reply = ask_dict[user_data[sender_number].ask_state]
+        reply = "6/7: "
+        reply += ask_dict[int(user_data[sender_number].ask_state)]
+    elif ask_state == AskState.ask_headshot_image and not user_data[sender_number].update_state:
+        user_data[sender_number].headshot_image = msg
+        user_data[sender_number].ask_state = AskState.ask_intro_video
+        reply = "7/7: "
+        reply += ask_dict[int(user_data[sender_number].ask_state)]
+    elif ask_state == AskState.ask_intro_video and not user_data[sender_number].update_state:
+        user_data[sender_number].intro_video = msg
+        reply = confirm_data(sender_number)
+        user_data[sender_number].ask_state = AskState.confirm_data
+    elif ask_state == AskState.confirm_data and not user_data[sender_number].update_state:
+        reply = ""
+        if msg == "1":
+            save_to_database(sender_number)
+            user_data[sender_number].ask_state = AskState.data_submitted
+            reply = ask_dict[int(user_data[sender_number].ask_state)]
+        else:
+            user_data[sender_number].ask_state = AskState.ask_for_update
+            reply = ask_dict[int(user_data[sender_number].ask_state)]
+            user_data[sender_number].update_state = True
+    elif ask_state == AskState.ask_for_update and user_data[sender_number].update_state:
+        reply = update_sender_data(sender_number, msg)
+        if not reply:
+            reply = ask_dict[int(user_data[sender_number].ask_state)]
 
     return reply
 
@@ -155,8 +243,10 @@ def check_user_message(sender_number, msg):
     reply = ""
     if sender_number in user_data:
         ask_state = user_data[sender_number].ask_state
-        if ask_state >= 1 and ask_state <= 7:
+        if int(ask_state) >= 1 and int(ask_state) <= 10:
             reply = update_user_data(sender_number, ask_state, msg)
+    else:
+        reply = HANDLE_ANY_TXT
 
     return reply
 
@@ -254,75 +344,87 @@ def sms_reply():
     media_file = ""
 
     # greet_from_user = False
-    if msg.lower() == "hi" or msg.lower() == "hello" or msg.lower() == "hey":
-        response = f"*Hi! {sender_name}, Welcome to Anticasting*\n\n"
-        response += "Please text your details like following format:\n----------------------------------------------------------\n"
-        response += f"Name: {sender_name}, Age: <age in years>, Ethinicity: <State you belongs to>, Gender: <m/f/o>, Location: <Current city/town>\n"
-        response += ("\n*As an example below:*\n"
-                    + f"Name: Mohan Kumar, Age: 23, Ethinicity: Maharashtra, Gender: m, Location: Pune\n\n"
-                    + "*Note:* For *male* type *m*, for female type *f* and for *other* type *o*"
-        )
-        # greet_from_user = True
-        insert_user_data_type(sender_name, STATE, State.ASK_USER_DATA)
+    # if msg.lower() == "hi" or msg.lower() == "hello" or msg.lower() == "hey":
+    #     response = f"*Hi! {sender_name}, Welcome to Anticasting*\n\n"
+    #     response += "Please text your details like following format:\n----------------------------------------------------------\n"
+    #     response += f"Name: {sender_name}, Age: <age in years>, Ethinicity: <State you belongs to>, Gender: <m/f/o>, Location: <Current city/town>\n"
+    #     response += ("\n*As an example below:*\n"
+    #                 + f"Name: Mohan Kumar, Age: 23, Ethinicity: Maharashtra, Gender: m, Location: Pune\n\n"
+    #                 + "*Note:* For *male* type *m*, for female type *f* and for *other* type *o*"
+    #     )
+    #     # greet_from_user = True
+    #     insert_user_data_type(sender_name, STATE, State.ASK_USER_DATA)
 
-    elif get_user_data_type(sender_name, STATE) == State.ASK_USER_DATA:
-        if re.match(pattern, msg):
-            match = re.search(pattern, msg).groups()
-            if len(match) != 5:
-                response = (
-                    "Please text your details in proper format like following example:\n"
-                    + "----------------------------------------------------------------\n"
-                    + f"*Name: Mohan Kumar, Age: 23, Ethinicity: Maharashtra, Gender: m, Location: Pune*\n\n"
-                    + "*Note:* For *male* type *m*, for female type *f* and for *other* type *o*"
-                )
-            else:
-                add_data_to_user_info(sender_number, match)
-                response = "Please attach your head shot image like below:\n"
-                media_file = ""  # add headshot file path
-                insert_user_data_type(sender_name, STATE, State.ASK_HEAD_SHOT)
-        else:
-            response = (
-                "Please text your details in proper format like following example:\n"
-                + "----------------------------------------------------------------\n"
-                + f"*Name: Mohan Kumar, Age: 23, Ethinicity: Maharashtra, Gender: m, Location: Pune*\n\n"
-                + "*Note:* For *male* type *m*, for female type *f* and for *other* type *o*"
-            )
+    # elif get_user_data_type(sender_name, STATE) == State.ASK_USER_DATA:
+    #     if re.match(pattern, msg):
+    #         match = re.search(pattern, msg).groups()
+    #         if len(match) != 5:
+    #             response = (
+    #                 "Please text your details in proper format like following example:\n"
+    #                 + "----------------------------------------------------------------\n"
+    #                 + f"*Name: Mohan Kumar, Age: 23, Ethinicity: Maharashtra, Gender: m, Location: Pune*\n\n"
+    #                 + "*Note:* For *male* type *m*, for female type *f* and for *other* type *o*"
+    #             )
+    #         else:
+    #             add_data_to_user_info(sender_number, match)
+    #             response = "Please attach your head shot image like below:\n"
+    #             media_file = ""  # add headshot file path
+    #             insert_user_data_type(sender_name, STATE, State.ASK_HEAD_SHOT)
+    #     else:
+    #         response = (
+    #             "Please text your details in proper format like following example:\n"
+    #             + "----------------------------------------------------------------\n"
+    #             + f"*Name: Mohan Kumar, Age: 23, Ethinicity: Maharashtra, Gender: m, Location: Pune*\n\n"
+    #             + "*Note:* For *male* type *m*, for female type *f* and for *other* type *o*"
+    #         )
 
-    elif get_user_data_type(sender_name, STATE) == State.ASK_HEAD_SHOT and media_content_type == "image/jpeg":
-        response = "Please attach your intro video like attached sample or send youtube link of intro video"
-        media_file = ""  # add intro sample file path
-        insert_user_data_type(sender_name, STATE, State.ASK_INTRO_VIDEO)
+    # elif get_user_data_type(sender_name, STATE) == State.ASK_HEAD_SHOT and media_content_type == "image/jpeg":
+    #     response = "Please attach your intro video like attached sample or send youtube link of intro video"
+    #     media_file = ""  # add intro sample file path
+    #     insert_user_data_type(sender_name, STATE, State.ASK_INTRO_VIDEO)
 
-    elif get_user_data_type(sender_name, STATE) == State.ASK_INTRO_VIDEO and media_content_type == "video/mp4":
-        response = 'You can text your other work reel in youtube or\ncan text "Bye" to complete submission'
-        insert_user_data_type(sender_name, STATE, State.INTRO_VIDEO_RECEIVED)
-    elif is_valid_url(msg):
-        response = 'You can text more work reel in youtube or\ncan text "Bye" to complete submission'
-        insert_user_data_type(sender_name, STATE, State.WORK_REEL_RECEIVED)
+    # elif get_user_data_type(sender_name, STATE) == State.ASK_INTRO_VIDEO and media_content_type == "video/mp4":
+    #     response = 'You can text your other work reel in youtube or\ncan text "Bye" to complete submission'
+    #     insert_user_data_type(sender_name, STATE, State.INTRO_VIDEO_RECEIVED)
+    # elif is_valid_url(msg):
+    #     response = 'You can text more work reel in youtube or\ncan text "Bye" to complete submission'
+    #     insert_user_data_type(sender_name, STATE, State.WORK_REEL_RECEIVED)
     ########### Response start
-    if (
-        get_user_data_type(sender_name, STATE) == State.ASK_USER_DATA
-        or is_valid_url(msg)
-        or (msg.lower() != "bye" and get_user_data_type(sender_name, STATE) == State.WORK_REEL_RECEIVED)
-        or (msg.lower() != "bye" and get_user_data_type(sender_name, STATE) == State.INTRO_VIDEO_RECEIVED)
-    ):
-        resp.message(response)
-    elif (
-        get_user_data_type(sender_name, STATE) == State.ASK_HEAD_SHOT
-        or get_user_data_type(sender_name, STATE) == State.ASK_INTRO_VIDEO
-    ):
-        resp.message(response)
-        # resp.message(response).media(media_file)
-    elif msg.lower() == "bye" and (
-        get_user_data_type(sender_name, STATE) == State.INTRO_VIDEO_RECEIVED
-        or get_user_data_type(sender_name, STATE) == State.WORK_REEL_RECEIVED
-    ):
-        resp.message(f"Thanks {sender_name}! to submit your profile\nFor more info please visit anticating.in")
-    else:
-        resp.message(
-            f'Hi {sender_name}!,\nHow I can help you?\nTo submit profile please text "Hi" here\nFor more info please visit anticating.in'
-        )
+    # if (
+    #     get_user_data_type(sender_name, STATE) == State.ASK_USER_DATA
+    #     or is_valid_url(msg)
+    #     or (msg.lower() != "bye" and get_user_data_type(sender_name, STATE) == State.WORK_REEL_RECEIVED)
+    #     or (msg.lower() != "bye" and get_user_data_type(sender_name, STATE) == State.INTRO_VIDEO_RECEIVED)
+    # ):
+    #     resp.message(response)
+    # elif (
+    #     get_user_data_type(sender_name, STATE) == State.ASK_HEAD_SHOT
+    #     or get_user_data_type(sender_name, STATE) == State.ASK_INTRO_VIDEO
+    # ):
+    #     resp.message(response)
+    #     # resp.message(response).media(media_file)
+    # elif msg.lower() == "bye" and (
+    #     get_user_data_type(sender_name, STATE) == State.INTRO_VIDEO_RECEIVED
+    #     or get_user_data_type(sender_name, STATE) == State.WORK_REEL_RECEIVED
+    # ):
+    #     resp.message(f"Thanks {sender_name}! to submit your profile\nFor more info please visit anticating.in")
+    # else:
+    #     resp.message(
+    #         f'Hi {sender_name}!,\nHow I can help you?\nTo submit profile please text "Hi" here\nFor more info please visit anticating.in'
+    #     )
 
+
+    if sender_number in user_data:
+        print("user_data[sender_number].ask_state")
+        print(user_data[sender_number].ask_state)
+    response = decide_on_message(sender_number, msg)
+    res = resp.message(response)
+    if sender_number in user_data and user_data[sender_number].ask_state == AskState.ask_headshot_image:
+        res.media("https://images.unsplash.com/photo-1518717758536-85ae29035b6d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=1350&q=80")
+    # elif sender_number in user_data and user_data[sender_number].ask_state == AskState.ask_intro_video:
+    #     print("########$$$$$$$$$$$$$$$$$$$$$$$$$888888888888888888")
+    #     res.media_url("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4")
+    print(resp)
     return str(resp)
 
 
